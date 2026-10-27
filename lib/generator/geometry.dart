@@ -26,6 +26,7 @@ class GridPos {
   GridPos step(Side side) => GridPos(x + side.dx, y + side.dy);
 
   GridPos operator +(GridPos o) => GridPos(x + o.x, y + o.y);
+  GridPos operator -(GridPos o) => GridPos(x - o.x, y - o.y);
 
   Iterable<GridPos> get neighbors => Side.values.map(step);
 
@@ -39,3 +40,5 @@ class GridPos {
   @override
   String toString() => '($x,$y)';
 }
+
+typedef Door = ({GridPos cell, Side side});

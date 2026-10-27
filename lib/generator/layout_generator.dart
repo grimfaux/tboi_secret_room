@@ -10,6 +10,10 @@ class LayoutGenerator {
   static const height = 8;
   static const start = GridPos(4, 3);
   static const maxSeed = 0x7fffffff;
+  static const specialShapeChance = 0.25;
+
+  static final specialShapes =
+      RoomShape.values.where((s) => s != RoomShape.oneByOne).toList();
 
   static int targetRoomCount(int level, Random rng) =>
       min(20, rng.nextInt(2) + 5 + (level * 10 / 3).floor());
@@ -28,77 +32,133 @@ class LayoutGenerator {
 
   FloorLayout? _attempt(
       Random rng, int seed, int level, int target, int attempt) {
-    final dist = <GridPos, int>{start: 0};
-    final order = <GridPos>[start];
-    final queue = Queue<GridPos>()..add(start);
-    final deadEnds = <GridPos>[];
+    final origins = <GridPos>[start];
+    final shapes = <RoomShape>[RoomShape.oneByOne];
+    final dist = <int>[0];
+    final owner = <GridPos, int>{start: 0};
+    final queue = Queue<int>()..add(0);
+    final deadEnds = <int>[];
+
+    List<GridPos>? place(RoomShape shape, GridPos origin, Side fromParent) {
+      final cells = shape.cellsAt(origin);
+      if (!cells.every((c) => _inBounds(c) && !owner.containsKey(c))) return null;
+      if (!shape.openSides.contains(fromParent.opposite)) return null;
+      var contacts = 0;
+      for (final c in cells) {
+        for (final n in c.neighbors) {
+          if (!cells.contains(n) && owner.containsKey(n)) contacts++;
+        }
+      }
+      return contacts == 1 ? cells : null;
+    }
 
     while (queue.isNotEmpty) {
       final cur = queue.removeFirst();
       var added = false;
-      for (final n in cur.neighbors) {
-        if (!_inBounds(n) || dist.containsKey(n)) continue;
-        if (n.neighbors.where(dist.containsKey).length > 1) continue;
-        if (dist.length >= target) continue;
-        if (rng.nextBool()) continue;
-        dist[n] = dist[cur]! + 1;
-        order.add(n);
-        queue.add(n);
-        added = true;
+      for (final cell in shapes[cur].cellsAt(origins[cur])) {
+        for (final side in Side.values) {
+          if (!shapes[cur].openSides.contains(side)) continue;
+          final n = cell.step(side);
+          if (!_inBounds(n) || owner.containsKey(n)) continue;
+          if (origins.length >= target) continue;
+          if (rng.nextBool()) continue;
+
+          var shape = RoomShape.oneByOne;
+          var origin = n;
+          var cells = place(shape, origin, side);
+          if (rng.nextDouble() < specialShapeChance) {
+            final s = specialShapes[rng.nextInt(specialShapes.length)];
+            final fits = [
+              for (final o in s.offsets)
+                if (place(s, n - o, side) != null) n - o,
+            ];
+            if (fits.isNotEmpty) {
+              shape = s;
+              origin = fits[rng.nextInt(fits.length)];
+              cells = place(s, origin, side);
+            }
+          }
+          if (cells == null) continue;
+
+          final id = origins.length;
+          origins.add(origin);
+          shapes.add(shape);
+          dist.add(dist[cur] + 1);
+          for (final c in cells) {
+            owner[c] = id;
+          }
+          queue.add(id);
+          added = true;
+        }
       }
-      if (!added && cur != start) deadEnds.add(cur);
+      if (!added && cur != 0 && shapes[cur] == RoomShape.oneByOne) {
+        deadEnds.add(cur);
+      }
     }
 
-    if (dist.length != target || deadEnds.length < 4) return null;
+    if (origins.length != target || deadEnds.length < 4) return null;
 
     deadEnds.sort((a, b) {
-      final d = dist[b]!.compareTo(dist[a]!);
-      return d != 0 ? d : order.indexOf(a).compareTo(order.indexOf(b));
+      final d = dist[b].compareTo(dist[a]);
+      return d != 0 ? d : a.compareTo(b);
     });
-    final types = <GridPos, RoomType>{
-      for (final p in order) p: RoomType.normal,
-      start: RoomType.start,
-      deadEnds[0]: RoomType.boss,
-      deadEnds[1]: RoomType.superSecret,
-    };
+    final types = List.filled(origins.length, RoomType.normal, growable: true);
+    types[0] = RoomType.start;
+    types[deadEnds[0]] = RoomType.boss;
+    types[deadEnds[1]] = RoomType.superSecret;
     final rest = deadEnds.sublist(2);
     types[rest.removeAt(rng.nextInt(rest.length))] = RoomType.treasure;
     types[rest.removeAt(rng.nextInt(rest.length))] = RoomType.shop;
 
-    final blocked = {deadEnds[0], deadEnds[1]};
+    bool opensToward(GridPos from, Side side) {
+      final id = owner[from.step(side)];
+      return id != null && shapes[id].openSides.contains(side.opposite);
+    }
+
+    final blocked = {origins[deadEnds[0]], origins[deadEnds[1]]};
     final candidates = <SecretCandidate>[];
     for (var y = 0; y < height; y++) {
       for (var x = 0; x < width; x++) {
         final p = GridPos(x, y);
-        if (dist.containsKey(p)) continue;
-        final adj = p.neighbors.where(dist.containsKey).toList();
-        if (adj.isEmpty || adj.any(blocked.contains)) continue;
+        if (owner.containsKey(p)) continue;
+        final contacts = Side.values.where((s) => opensToward(p, s)).length;
+        if (contacts == 0 || p.neighbors.any(blocked.contains)) continue;
         candidates.add(SecretCandidate(
-            pos: p, neighbors: adj.length, roll: 10 + rng.nextInt(5)));
+            pos: p, neighbors: contacts, roll: 10 + rng.nextInt(5)));
       }
     }
     if (candidates.isEmpty) return null;
-    final secret =
-        candidates.reduce((a, b) => b.weight > a.weight ? b : a).pos;
-    types[secret] = RoomType.secret;
-    dist[secret] =
-        secret.neighbors.where(dist.containsKey).map((p) => dist[p]!).reduce(min) + 1;
-    order.add(secret);
+    final secret = candidates.reduce((a, b) => b.weight > a.weight ? b : a).pos;
+    final secretId = origins.length;
+    origins.add(secret);
+    shapes.add(RoomShape.oneByOne);
+    types.add(RoomType.secret);
+    dist.add(Side.values
+            .where((s) => opensToward(secret, s))
+            .map((s) => dist[owner[secret.step(s)]!])
+            .reduce(min) +
+        1);
+    owner[secret] = secretId;
 
     // Extension point: ultra secret room placement goes here.
 
+    Set<Door> doorsOf(int id) => {
+          for (final c in shapes[id].cellsAt(origins[id]))
+            for (final s in shapes[id].openSides)
+              if (owner[c.step(s)] case final other?)
+                if (other != id && shapes[other].openSides.contains(s.opposite))
+                  (cell: c, side: s),
+        };
+
     final rooms = <RoomSlot>[
-      for (final (i, p) in order.indexed)
+      for (var i = 0; i < origins.length; i++)
         RoomSlot(
           id: i,
-          origin: p,
-          shape: RoomShape.oneByOne,
-          type: types[p]!,
-          doors: {
-            for (final s in Side.values)
-              if (dist.containsKey(p.step(s))) s,
-          },
-          distance: dist[p]!,
+          origin: origins[i],
+          shape: shapes[i],
+          type: types[i],
+          doors: doorsOf(i),
+          distance: dist[i],
           seed: rng.nextInt(maxSeed),
         ),
     ];
@@ -110,7 +170,7 @@ class LayoutGenerator {
       height: height,
       targetRoomCount: target,
       rooms: rooms,
-      deadEnds: List.unmodifiable(deadEnds),
+      deadEnds: [for (final d in deadEnds) origins[d]],
       secretCandidates: List.unmodifiable(candidates),
       attempts: attempt,
     );

@@ -21,7 +21,7 @@ class RoomFiller {
           t.shape == slot.shape &&
           t.type == slot.type &&
           t.weight > 0 &&
-          t.doors.containsAll(slot.doors))
+          t.doors.containsAll(slot.relativeDoors))
       .toList();
 
   FilledRoom fill(RoomSlot slot) {

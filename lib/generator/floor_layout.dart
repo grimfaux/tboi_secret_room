@@ -16,11 +16,16 @@ class RoomSlot {
   final GridPos origin;
   final RoomShape shape;
   final RoomType type;
-  final Set<Side> doors;
+  final Set<Door> doors;
   final int distance;
   final int seed;
 
   List<GridPos> get cells => shape.cellsAt(origin);
+
+  Set<Door> get relativeDoors =>
+      {for (final d in doors) (cell: d.cell - origin, side: d.side)};
+
+  bool isOpen(Side side) => shape.openSides.contains(side);
 }
 
 class SecretCandidate {

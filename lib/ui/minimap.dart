@@ -123,10 +123,10 @@ class _MinimapPainter extends CustomPainter {
 
     for (final r in layout.rooms) {
       if (c.isHidden(r)) continue;
-      for (final side in r.doors) {
-        final other = layout.roomAt(r.origin.step(side));
+      for (final d in r.doors) {
+        final other = layout.roomAt(d.cell.step(d.side));
         if (other == null || c.isHidden(other)) continue;
-        _door(canvas, r.origin, side, s, _isSecretType(r) || _isSecretType(other));
+        _door(canvas, d.cell, d.side, s, _isSecretType(r) || _isSecretType(other));
       }
     }
 

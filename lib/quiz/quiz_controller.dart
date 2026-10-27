@@ -81,8 +81,9 @@ class QuizController extends ChangeNotifier {
     return r == null || isHidden(r) ? null : r;
   }
 
-  int visibleNeighbors(GridPos p) =>
-      p.neighbors.where((n) => visibleRoomAt(n) != null).length;
+  int visibleNeighbors(GridPos p) => Side.values
+      .where((s) => visibleRoomAt(p.step(s))?.isOpen(s.opposite) ?? false)
+      .length;
 
   bool isGuessSpot(GridPos p) =>
       layout.inBounds(p) && visibleRoomAt(p) == null && visibleNeighbors(p) > 0;

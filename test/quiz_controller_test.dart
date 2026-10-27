@@ -1,6 +1,7 @@
 import 'dart:math';
 
 import 'package:flutter_test/flutter_test.dart';
+import 'package:secret_room_trainer/generator/geometry.dart';
 import 'package:secret_room_trainer/generator/room_shape.dart';
 import 'package:secret_room_trainer/quiz/quiz_controller.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -24,10 +25,13 @@ void main() {
       expect(c.isGuessSpot(secret), isTrue);
       for (final n in ssr.neighbors.where(c.layout.inBounds)) {
         final hint = c.visibleNeighbors(n);
-        final actual = n.neighbors
-            .map(c.layout.roomAt)
-            .where((r) => r != null && r.type != RoomType.secret && r.type != RoomType.superSecret)
-            .length;
+        final actual = Side.values.where((s) {
+          final r = c.layout.roomAt(n.step(s));
+          return r != null &&
+              r.type != RoomType.secret &&
+              r.type != RoomType.superSecret &&
+              r.isOpen(s.opposite);
+        }).length;
         expect(hint, actual);
       }
     }

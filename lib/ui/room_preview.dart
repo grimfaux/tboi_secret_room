@@ -26,7 +26,7 @@ Future<void> showRoomPreview(BuildContext context, FilledRoom room) {
             const SizedBox(height: 12),
             Text(
               'Template: ${room.isFallback ? 'none matched (empty fallback)' : t.id}\n'
-              'Doors: ${slot.doors.map((d) => d.name).join(', ')}\n'
+              'Shape: ${slot.shape.name}  |  Doors: ${slot.doors.length}\n'
               'Distance from start: ${slot.distance}  |  Difficulty: ${t.difficulty}\n'
               'Room seed: ${slot.seed}',
               style: const TextStyle(color: Colors.white70, height: 1.4),
@@ -75,25 +75,12 @@ class _RoomPainter extends CustomPainter {
     canvas.drawRect(
         Rect.fromLTWH(tile, tile, w * tile, h * tile), Paint()..color = _floor);
 
-    for (final side in room.slot.doors) {
-      final x = switch (side) {
-        Side.left => 0,
-        Side.right => w + 1,
-        _ => w ~/ 2 + 1,
-      };
-      final y = switch (side) {
-        Side.up => 0,
-        Side.down => h + 1,
-        _ => h ~/ 2 + 1,
-      };
-      canvas.drawRect(
-          Rect.fromLTWH(x * tile, y * tile, tile, tile), Paint()..color = _door);
-    }
-
     for (var y = 0; y < h; y++) {
       for (var x = 0; x < w; x++) {
         final rect = Rect.fromLTWH((x + 1) * tile, (y + 1) * tile, tile, tile);
         switch (t.tiles[y][x]) {
+          case '#':
+            canvas.drawRect(rect, Paint()..color = _wall);
           case 'r':
             canvas.drawRRect(
               RRect.fromRectAndRadius(rect.deflate(tile * 0.08), Radius.circular(tile * 0.25)),
@@ -110,6 +97,23 @@ class _RoomPainter extends CustomPainter {
                 Palette.wrong);
         }
       }
+    }
+
+    const cx = RoomShape.tilesPerCellX, cy = RoomShape.tilesPerCellY;
+    for (final d in room.slot.relativeDoors) {
+      final c = d.cell;
+      final x = switch (d.side) {
+        Side.left => c.x * cx,
+        Side.right => (c.x + 1) * cx + 1,
+        _ => c.x * cx + cx ~/ 2 + 1,
+      };
+      final y = switch (d.side) {
+        Side.up => c.y * cy,
+        Side.down => (c.y + 1) * cy + 1,
+        _ => c.y * cy + cy ~/ 2 + 1,
+      };
+      canvas.drawRect(
+          Rect.fromLTWH(x * tile, y * tile, tile, tile), Paint()..color = _door);
     }
   }
 

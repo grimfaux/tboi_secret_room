@@ -31,7 +31,7 @@ void main() {
         final t = filled.template;
         expect(t.shape, filled.slot.shape);
         expect(t.type, filled.slot.type);
-        expect(t.doors.containsAll(filled.slot.doors), isTrue);
+        expect(t.doors.containsAll(filled.slot.relativeDoors), isTrue);
         if (!filled.isFallback) expect(pool, contains(t));
       }
     }
@@ -54,5 +54,17 @@ void main() {
     final filled = RoomFiller(const []).fill(layout.rooms.first);
     expect(filled.isFallback, isTrue);
     expect(filled.template.tiles.join().replaceAll('.', ''), isEmpty);
+  });
+
+  test('empty fallback fits every shape', () {
+    for (final shape in RoomShape.values) {
+      final t = RoomTemplate.empty(shape, RoomType.normal);
+      expect(t.tiles.length, shape.tileHeight);
+      expect(t.tiles.every((r) => r.length == shape.tileWidth), isTrue);
+      for (final d in t.doors) {
+        expect(shape.openSides, contains(d.side));
+        expect(shape.offsets, contains(d.cell));
+      }
+    }
   });
 }
