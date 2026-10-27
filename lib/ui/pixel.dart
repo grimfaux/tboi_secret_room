@@ -8,22 +8,33 @@ class CheckerBackground extends StatelessWidget {
   final Widget child;
 
   @override
-  Widget build(BuildContext context) =>
-      CustomPaint(painter: _CheckerPainter(), child: child);
+  Widget build(BuildContext context) => Stack(
+        fit: StackFit.expand,
+        children: [
+          RepaintBoundary(child: CustomPaint(painter: _CheckerPainter())),
+          RepaintBoundary(child: child),
+        ],
+      );
 }
 
 class _CheckerPainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
     canvas.drawRect(Offset.zero & size, Paint()..color = Palette.background);
-    final paint = Paint()..color = Palette.checker;
     const s = 4.0;
+    final path = Path();
     for (var y = 0.0; y < size.height; y += s * 2) {
       for (var x = 0.0; x < size.width; x += s * 2) {
-        canvas.drawRect(Rect.fromLTWH(x, y, s, s), paint);
-        canvas.drawRect(Rect.fromLTWH(x + s, y + s, s, s), paint);
+        path
+          ..addRect(Rect.fromLTWH(x, y, s, s))
+          ..addRect(Rect.fromLTWH(x + s, y + s, s, s));
       }
     }
+    canvas.drawPath(
+        path,
+        Paint()
+          ..color = Palette.checker
+          ..isAntiAlias = false);
   }
 
   @override

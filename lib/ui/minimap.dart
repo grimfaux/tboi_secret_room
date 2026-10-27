@@ -23,6 +23,24 @@ class Minimap extends StatefulWidget {
 class _MinimapState extends State<Minimap> {
   GridPos? _hover;
 
+  void _fontsChanged() => setState(() {});
+
+  @override
+  void initState() {
+    super.initState();
+    PaintingBinding.instance.systemFonts.addListener(_fontsChanged);
+  }
+
+  @override
+  void dispose() {
+    PaintingBinding.instance.systemFonts.removeListener(_fontsChanged);
+    super.dispose();
+  }
+
+  void _setHover(GridPos? p) {
+    if (p != _hover) setState(() => _hover = p);
+  }
+
   ({GridPos origin, int cols, int rows}) _view() {
     final layout = widget.controller.layout;
     final cells = [
@@ -64,7 +82,7 @@ class _MinimapState extends State<Minimap> {
     return LayoutBuilder(builder: (context, box) {
       var cell = [box.maxWidth / view.cols, box.maxHeight / view.rows, 96.0]
           .reduce((a, b) => a < b ? a : b);
-      if (cell >= 32) cell = (cell / 8).floorToDouble() * 8;
+      cell = cell >= 32 ? (cell / 8).floorToDouble() * 8 : cell.floorToDouble();
       final size = Size(cell * view.cols, cell * view.rows);
       final hover = _hover;
       return Center(
@@ -72,19 +90,20 @@ class _MinimapState extends State<Minimap> {
           cursor: hover != null && _tappable(hover)
               ? SystemMouseCursors.click
               : MouseCursor.defer,
-          onHover: (e) =>
-              setState(() => _hover = _cellAt(e.localPosition, cell, view.origin)),
-          onExit: (_) => setState(() => _hover = null),
+          onHover: (e) => _setHover(_cellAt(e.localPosition, cell, view.origin)),
+          onExit: (_) => _setHover(null),
           child: GestureDetector(
             onTapUp: (d) => _tap(_cellAt(d.localPosition, cell, view.origin)),
-            child: CustomPaint(
-              size: size,
-              painter: _MinimapPainter(
-                widget.controller,
-                hover != null && _tappable(hover) ? hover : null,
-                view.origin,
-                cell,
-                widget.sprites,
+            child: RepaintBoundary(
+              child: CustomPaint(
+                size: size,
+                painter: _MinimapPainter(
+                  widget.controller,
+                  hover != null && _tappable(hover) ? hover : null,
+                  view.origin,
+                  cell,
+                  widget.sprites,
+                ),
               ),
             ),
           ),
@@ -191,7 +210,15 @@ class _MinimapPainter extends CustomPainter {
       final rect = _cellRect(p);
       final tile = sprites?.tile(r.shape.tiles[i]);
       if (tile != null) {
-        _image(canvas, tile, rect, tint: tint);
+        bool joined(Side side) => cells.contains(p.step(side));
+        const overlap = 1.0;
+        final dst = Rect.fromLTRB(
+          rect.left - (joined(Side.left) ? overlap : 0),
+          rect.top - (joined(Side.up) ? overlap : 0),
+          rect.right + (joined(Side.right) ? overlap : 0),
+          rect.bottom + (joined(Side.down) ? overlap : 0),
+        );
+        _image(canvas, tile, dst, tint: tint);
       } else {
         canvas.drawRect(rect, Paint()..color = Palette.ink);
         canvas.drawRect(rect.deflate(s * 0.06), Paint()..color = tint ?? Palette.room);
@@ -214,6 +241,7 @@ class _MinimapPainter extends CustomPainter {
   void _image(Canvas canvas, ui.Image image, Rect dst, {Color? tint, double opacity = 1}) {
     final paint = Paint()
       ..filterQuality = FilterQuality.none
+      ..isAntiAlias = false
       ..color = Color.fromRGBO(0, 0, 0, opacity);
     if (tint != null) paint.colorFilter = ColorFilter.mode(tint, BlendMode.modulate);
     canvas.drawImageRect(

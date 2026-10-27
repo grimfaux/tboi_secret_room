@@ -13,19 +13,19 @@ import 'ui/sprites.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  final prefs = await SharedPreferences.getInstance();
-  try {
-    await GoogleFonts.pendingFonts([
-      for (final w in [FontWeight.w400, FontWeight.w600, FontWeight.w700])
-        GoogleFonts.pixelifySans(fontWeight: w),
-    ]);
-  } catch (_) {}
-  final pool = RoomTemplate.parsePool(
-      await rootBundle.loadString('assets/rooms/templates.json'));
+  GoogleFonts.pendingFonts([
+    for (final w in [FontWeight.w400, FontWeight.w600, FontWeight.w700])
+      GoogleFonts.pixelifySans(fontWeight: w),
+  ]).ignore();
+  final (prefs, templates, sprites) = await (
+    SharedPreferences.getInstance(),
+    rootBundle.loadString('assets/rooms/templates.json'),
+    Sprites.load(rootBundle),
+  ).wait;
   runApp(SecretRoomApp(
     controller: QuizController(store: StatsStore(prefs)),
-    filler: RoomFiller(pool),
-    sprites: await Sprites.load(rootBundle),
+    filler: RoomFiller(RoomTemplate.parsePool(templates)),
+    sprites: sprites,
   ));
 }
 
