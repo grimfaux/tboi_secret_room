@@ -1,11 +1,11 @@
 {
-    "name": "secret_room_trainer",
-    "short_name": "secret_room_trainer",
+    "name": "Secret Room Trainer",
+    "short_name": "Secret Rooms",
     "start_url": ".",
     "display": "standalone",
-    "background_color": "#0175C2",
-    "theme_color": "#0175C2",
-    "description": "A new Flutter project.",
+    "background_color": "#120E0D",
+    "theme_color": "#120E0D",
+    "description": "Guess the secret rooms on generated floors.",
     "orientation": "portrait-primary",
     "prefer_related_applications": false,
     "icons": [

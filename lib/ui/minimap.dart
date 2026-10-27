@@ -19,8 +19,23 @@ class Minimap extends StatefulWidget {
 class _MinimapState extends State<Minimap> {
   GridPos? _hover;
 
-  GridPos _cellAt(Offset local, double cell) =>
-      GridPos((local.dx / cell).floor(), (local.dy / cell).floor());
+  ({GridPos origin, int cols, int rows}) _view() {
+    final layout = widget.controller.layout;
+    final cells = [
+      for (final r in layout.rooms)
+        if (r.type != RoomType.secret && r.type != RoomType.superSecret) ...r.cells,
+    ];
+    int lo(Iterable<int> v) => v.reduce((a, b) => a < b ? a : b);
+    int hi(Iterable<int> v) => v.reduce((a, b) => a > b ? a : b);
+    final x0 = (lo(cells.map((p) => p.x)) - 1).clamp(0, layout.width - 1);
+    final y0 = (lo(cells.map((p) => p.y)) - 1).clamp(0, layout.height - 1);
+    final x1 = (hi(cells.map((p) => p.x)) + 1).clamp(0, layout.width - 1);
+    final y1 = (hi(cells.map((p) => p.y)) + 1).clamp(0, layout.height - 1);
+    return (origin: GridPos(x0, y0), cols: x1 - x0 + 1, rows: y1 - y0 + 1);
+  }
+
+  GridPos _cellAt(Offset local, double cell, GridPos origin) =>
+      origin + GridPos((local.dx / cell).floor(), (local.dy / cell).floor());
 
   bool _tappable(GridPos p) {
     final c = widget.controller;
@@ -41,27 +56,29 @@ class _MinimapState extends State<Minimap> {
 
   @override
   Widget build(BuildContext context) {
-    final layout = widget.controller.layout;
+    final view = _view();
     return LayoutBuilder(builder: (context, box) {
-      final cell = (box.maxWidth / layout.width)
-          .clamp(0.0, box.maxHeight / layout.height)
-          .toDouble();
-      final size = Size(cell * layout.width, cell * layout.height);
+      final cell = [box.maxWidth / view.cols, box.maxHeight / view.rows, 110.0]
+          .reduce((a, b) => a < b ? a : b);
+      final size = Size(cell * view.cols, cell * view.rows);
       final hover = _hover;
       return Center(
         child: MouseRegion(
           cursor: hover != null && _tappable(hover)
               ? SystemMouseCursors.click
               : MouseCursor.defer,
-          onHover: (e) => setState(() => _hover = _cellAt(e.localPosition, cell)),
+          onHover: (e) =>
+              setState(() => _hover = _cellAt(e.localPosition, cell, view.origin)),
           onExit: (_) => setState(() => _hover = null),
           child: GestureDetector(
-            onTapUp: (d) => _tap(_cellAt(d.localPosition, cell)),
+            onTapUp: (d) => _tap(_cellAt(d.localPosition, cell, view.origin)),
             child: CustomPaint(
               size: size,
               painter: _MinimapPainter(
                 widget.controller,
                 hover != null && _tappable(hover) ? hover : null,
+                view.origin,
+                cell,
               ),
             ),
           ),
@@ -72,19 +89,22 @@ class _MinimapState extends State<Minimap> {
 }
 
 class _MinimapPainter extends CustomPainter {
-  _MinimapPainter(this.c, this.hover);
+  _MinimapPainter(this.c, this.hover, this.origin, this.s);
 
   final QuizController c;
   final GridPos? hover;
+  final GridPos origin;
+  final double s;
 
   @override
   void paint(Canvas canvas, Size size) {
     final layout = c.layout;
-    final s = size.width / layout.width;
     canvas.drawRRect(
       RRect.fromRectAndRadius(Offset.zero & size, Radius.circular(s * 0.2)),
       Paint()..color = Palette.mapBackground,
     );
+    canvas.clipRect(Offset.zero & size);
+    canvas.translate(-origin.x * s, -origin.y * s);
 
     for (var y = 0; y < layout.height; y++) {
       for (var x = 0; x < layout.width; x++) {
@@ -262,6 +282,9 @@ class _MinimapPainter extends CustomPainter {
           fontSize: size,
           color: color,
           fontWeight: bold ? FontWeight.bold : FontWeight.w500,
+          shadows: color == Palette.mapBackground
+              ? null
+              : const [Shadow(blurRadius: 3, color: Colors.black)],
         ),
       ),
       center,

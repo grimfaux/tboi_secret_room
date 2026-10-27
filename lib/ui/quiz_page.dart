@@ -146,8 +146,9 @@ class QuizPage extends StatelessWidget {
       padding: const EdgeInsets.only(bottom: 8),
       child: Text(
         'Each candidate shows adjacent rooms (n) and its weight range; w is the '
-        'rolled weight. Highest weight wins. Cells next to the boss or super '
-        'secret room are never candidates. Tap a room to peek inside.',
+        'rolled weight. Highest weight wins (ties: topmost, then leftmost). '
+        'Cells next to the boss or super secret room are never candidates. '
+        'Tap a room to peek inside.',
         textAlign: TextAlign.center,
         style: Theme.of(context).textTheme.bodySmall?.copyWith(color: Colors.white70),
       ),
