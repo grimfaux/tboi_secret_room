@@ -7,14 +7,22 @@ import '../quiz/quiz_controller.dart';
 import 'minimap.dart';
 import 'palette.dart';
 import 'pixel.dart';
+import 'room_preview.dart';
 import 'sprites.dart';
 
 class QuizPage extends StatelessWidget {
-  const QuizPage({super.key, required this.controller, this.onPeek, this.sprites});
+  const QuizPage({super.key, required this.controller, this.sprites});
 
   final QuizController controller;
-  final void Function(BuildContext context, RoomSlot room)? onPeek;
   final Sprites? sprites;
+
+  void _peek(BuildContext context, RoomSlot room) {
+    final doors = {
+      for (final d in room.doors)
+        if (controller.visibleRoomAt(d.cell.step(d.side)) != null) d,
+    };
+    showRoomPreview(context, room, sprites, doors);
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -51,13 +59,22 @@ class QuizPage extends StatelessWidget {
                               child: Minimap(
                                 controller: controller,
                                 sprites: sprites,
-                                onRoomTap:
-                                    onPeek == null ? null : (r) => onPeek!(context, r),
+                                onRoomTap: (r) => _peek(context, r),
                               ),
                             ),
                           ),
                           const SizedBox(height: 12),
-                          if (controller.revealed) _legend(),
+                          if (controller.revealed)
+                            _legend()
+                          else
+                            Padding(
+                              padding: const EdgeInsets.only(bottom: 12),
+                              child: Text(
+                                'Tap a room to see which sides are walkable.',
+                                textAlign: TextAlign.center,
+                                style: Palette.font(size: 14, color: Palette.textDim),
+                              ),
+                            ),
                           _actions(),
                         ],
                       ),
@@ -197,7 +214,7 @@ class QuizPage extends StatelessWidget {
         'Each candidate shows adjacent rooms (n) and its weight range; w is the '
         'rolled weight. Highest weight wins (ties: topmost, then leftmost). '
         'Cells next to the boss or super secret room are never candidates. '
-        'Tap a room to peek inside.',
+        'Tap a room to see its layout.',
         textAlign: TextAlign.center,
         style: Palette.font(size: 14, color: Palette.textDim),
       ),

@@ -3,6 +3,7 @@ import 'dart:math';
 
 import 'floor_layout.dart';
 import 'geometry.dart';
+import 'room_layout.dart';
 import 'room_shape.dart';
 
 class LayoutGenerator {
@@ -110,44 +111,59 @@ class LayoutGenerator {
     types[rest.removeAt(rng.nextInt(rest.length))] = RoomType.treasure;
     types[rest.removeAt(rng.nextInt(rest.length))] = RoomType.shop;
 
-    bool opensToward(GridPos from, Side side) {
-      final id = owner[from.step(side)];
-      return id != null && shapes[id].openSides.contains(side.opposite);
+    final seeds = [for (var i = 0; i < origins.length; i++) rng.nextInt(maxSeed)];
+    Set<Door> contactsOf(int id) => {
+          for (final d in RoomLayouts.outerSides(shapes[id], origins[id]))
+            if (owner[d.cell.step(d.side)] != null) d,
+        };
+    final blockedSides = [
+      for (var i = 0; i < origins.length; i++)
+        RoomLayouts.blockedSides(shapes[i], origins[i], seeds[i], contactsOf(i)),
+    ];
+
+    bool reachable(GridPos from, Side side) {
+      final n = from.step(side);
+      final id = owner[n];
+      return id != null &&
+          shapes[id].openSides.contains(side.opposite) &&
+          !blockedSides[id].contains((cell: n, side: side.opposite));
     }
 
-    final blocked = {origins[deadEnds[0]], origins[deadEnds[1]]};
+    final nearSpecial = {origins[deadEnds[0]], origins[deadEnds[1]]};
     final candidates = <SecretCandidate>[];
     for (var y = 0; y < height; y++) {
       for (var x = 0; x < width; x++) {
         final p = GridPos(x, y);
         if (owner.containsKey(p)) continue;
-        final contacts = Side.values.where((s) => opensToward(p, s)).length;
-        if (contacts == 0 || p.neighbors.any(blocked.contains)) continue;
+        final contacts = Side.values.where((s) => reachable(p, s)).length;
+        if (contacts == 0 || p.neighbors.any(nearSpecial.contains)) continue;
         candidates.add(SecretCandidate(
             pos: p, neighbors: contacts, roll: 10 + rng.nextInt(5)));
       }
     }
     if (candidates.isEmpty) return null;
     final secret = candidates.reduce((a, b) => b.weight > a.weight ? b : a).pos;
-    final secretId = origins.length;
+    final secretDoors = {
+      for (final s in Side.clockwise)
+        if (reachable(secret, s)) (cell: secret, side: s),
+    };
+    dist.add(secretDoors
+            .map((d) => dist[owner[secret.step(d.side)]!])
+            .reduce(min) +
+        1);
+    owner[secret] = origins.length;
     origins.add(secret);
     shapes.add(RoomShape.oneByOne);
     types.add(RoomType.secret);
-    dist.add(Side.values
-            .where((s) => opensToward(secret, s))
-            .map((s) => dist[owner[secret.step(s)]!])
-            .reduce(min) +
-        1);
-    owner[secret] = secretId;
+    seeds.add(rng.nextInt(maxSeed));
+    blockedSides.add(RoomLayouts.blockedSides(
+        RoomShape.oneByOne, secret, seeds.last, secretDoors));
 
     // Extension point: ultra secret room placement goes here.
 
     Set<Door> doorsOf(int id) => {
-          for (final c in shapes[id].cellsAt(origins[id]))
-            for (final s in shapes[id].openSides)
-              if (owner[c.step(s)] case final other?)
-                if (other != id && shapes[other].openSides.contains(s.opposite))
-                  (cell: c, side: s),
+          for (final d in contactsOf(id))
+            if (!blockedSides[id].contains(d) && reachable(d.cell, d.side)) d,
         };
 
     final rooms = <RoomSlot>[
@@ -158,8 +174,9 @@ class LayoutGenerator {
           shape: shapes[i],
           type: types[i],
           doors: doorsOf(i),
+          blocked: blockedSides[i],
           distance: dist[i],
-          seed: rng.nextInt(maxSeed),
+          seed: seeds[i],
         ),
     ];
 

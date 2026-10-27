@@ -3,12 +3,9 @@ import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-import 'generator/room_filler.dart';
-import 'generator/room_template.dart';
 import 'quiz/quiz_controller.dart';
 import 'ui/palette.dart';
 import 'ui/quiz_page.dart';
-import 'ui/room_preview.dart';
 import 'ui/sprites.dart';
 
 Future<void> main() async {
@@ -17,14 +14,12 @@ Future<void> main() async {
     for (final w in [FontWeight.w400, FontWeight.w600, FontWeight.w700])
       GoogleFonts.pixelifySans(fontWeight: w),
   ]).ignore();
-  final (prefs, templates, sprites) = await (
+  final (prefs, sprites) = await (
     SharedPreferences.getInstance(),
-    rootBundle.loadString('assets/rooms/templates.json'),
     Sprites.load(rootBundle),
   ).wait;
   runApp(SecretRoomApp(
     controller: QuizController(store: StatsStore(prefs)),
-    filler: RoomFiller(RoomTemplate.parsePool(templates)),
     sprites: sprites,
   ));
 }
@@ -33,12 +28,10 @@ class SecretRoomApp extends StatelessWidget {
   const SecretRoomApp({
     super.key,
     required this.controller,
-    required this.filler,
     this.sprites,
   });
 
   final QuizController controller;
-  final RoomFiller filler;
   final Sprites? sprites;
 
   @override
@@ -47,11 +40,7 @@ class SecretRoomApp extends StatelessWidget {
       title: 'Secret Room Trainer',
       debugShowCheckedModeBanner: false,
       theme: _theme(),
-      home: QuizPage(
-        controller: controller,
-        sprites: sprites,
-        onPeek: (context, room) => showRoomPreview(context, filler.fill(room)),
-      ),
+      home: QuizPage(controller: controller, sprites: sprites),
     );
   }
 }

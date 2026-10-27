@@ -8,6 +8,7 @@ class RoomSlot {
     required this.shape,
     required this.type,
     required this.doors,
+    required this.blocked,
     required this.distance,
     required this.seed,
   });
@@ -17,15 +18,16 @@ class RoomSlot {
   final RoomShape shape;
   final RoomType type;
   final Set<Door> doors;
+  final Set<Door> blocked;
   final int distance;
   final int seed;
 
   List<GridPos> get cells => shape.cellsAt(origin);
 
-  Set<Door> get relativeDoors =>
-      {for (final d in doors) (cell: d.cell - origin, side: d.side)};
-
   bool isOpen(Side side) => shape.openSides.contains(side);
+
+  bool isAccessible(GridPos cell, Side side) =>
+      isOpen(side) && !blocked.contains((cell: cell, side: side));
 }
 
 class SecretCandidate {

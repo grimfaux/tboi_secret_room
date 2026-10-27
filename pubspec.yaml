@@ -21,6 +21,6 @@ dev_dependencies:
 flutter:
   uses-material-design: true
   assets:
-    - assets/rooms/templates.json
+    - assets/room_layouts/
     - assets/icons/
     - assets/tiles/

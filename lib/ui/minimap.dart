@@ -62,15 +62,15 @@ class _MinimapState extends State<Minimap> {
   bool _tappable(GridPos p) {
     final c = widget.controller;
     if (!c.layout.inBounds(p)) return false;
-    if (c.revealed) return widget.onRoomTap != null && c.layout.roomAt(p) != null;
-    return c.isGuessSpot(p);
+    if (widget.onRoomTap != null && c.visibleRoomAt(p) != null) return true;
+    return !c.revealed && c.isGuessSpot(p);
   }
 
   void _tap(GridPos p) {
     final c = widget.controller;
-    if (c.revealed) {
-      final room = c.layout.roomAt(p);
-      if (room != null) widget.onRoomTap?.call(room);
+    final room = c.visibleRoomAt(p);
+    if (room != null) {
+      widget.onRoomTap?.call(room);
     } else {
       c.tapCell(p);
     }
@@ -223,7 +223,7 @@ class _MinimapPainter extends CustomPainter {
         canvas.drawRect(rect, Paint()..color = Palette.ink);
         canvas.drawRect(rect.deflate(s * 0.06), Paint()..color = tint ?? Palette.room);
       }
-      if (c.revealed && cells.contains(hover)) {
+      if (cells.contains(hover)) {
         canvas.drawRect(rect, Paint()..color = Palette.spotHover);
       }
     }

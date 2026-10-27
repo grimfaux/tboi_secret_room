@@ -30,7 +30,7 @@ void main() {
           return r != null &&
               r.type != RoomType.secret &&
               r.type != RoomType.superSecret &&
-              r.isOpen(s.opposite);
+              r.isAccessible(n.step(s), s.opposite);
         }).length;
         expect(hint, actual);
       }

@@ -15,6 +15,12 @@ enum Side {
         Side.up => Side.down,
         Side.down => Side.up,
       };
+
+  static const clockwise = [Side.up, Side.right, Side.down, Side.left];
+
+  int get quarterTurns => clockwise.indexOf(this);
+
+  Side rotated(int turns) => clockwise[(quarterTurns + turns) % 4];
 }
 
 class GridPos {

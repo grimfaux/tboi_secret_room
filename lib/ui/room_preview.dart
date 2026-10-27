@@ -1,14 +1,47 @@
+import 'dart:math';
+import 'dart:ui' as ui;
+
 import 'package:flutter/material.dart';
 
+import '../generator/floor_layout.dart';
 import '../generator/geometry.dart';
-import '../generator/room_filler.dart';
 import '../generator/room_shape.dart';
 import 'palette.dart';
 import 'pixel.dart';
+import 'sprites.dart';
 
-Future<void> showRoomPreview(BuildContext context, FilledRoom room) {
-  final t = room.template;
-  final slot = room.slot;
+const _bases = {
+  '1_side': {Side.up},
+  '2_sides_parallel': {Side.up, Side.down},
+  '2_sides_perpendicular': {Side.up, Side.left},
+  '3_sides': {Side.up, Side.left, Side.right},
+};
+
+(String, int) layoutTile(RoomShape shape, Set<Side> blocked) {
+  bool same(Set<Side> a, Set<Side> b) => a.length == b.length && a.containsAll(b);
+  if (shape.openSides.length == 2) {
+    final turn = shape.openSides.contains(Side.up) ? 1 : 0;
+    if (blocked.isEmpty) return ('open_narrow', turn);
+    for (final k in [turn, turn + 2]) {
+      if (same({Side.right.rotated(k)}, blocked)) return ('1_side_narrow', k);
+    }
+  } else {
+    if (blocked.isEmpty) return ('open', 0);
+    for (final MapEntry(key: name, value: base) in _bases.entries) {
+      for (var k = 0; k < 4; k++) {
+        if (same({for (final s in base) s.rotated(k)}, blocked)) return (name, k);
+      }
+    }
+  }
+  throw StateError('No layout image for ${shape.name} blocked $blocked');
+}
+
+Future<void> showRoomPreview(BuildContext context, RoomSlot slot, Sprites? sprites,
+    Set<Door> visibleDoors) {
+  final wide = slot.shape.cellsWide, tall = slot.shape.cellsTall;
+  final avail = min(360.0, MediaQuery.sizeOf(context).width - 150);
+  var cell = min(min(avail / wide, 280 / tall), 192.0);
+  cell = max(48.0, (cell / 16).floorToDouble() * 16);
   return showDialog(
     context: context,
     builder: (context) => AlertDialog(
@@ -19,20 +52,23 @@ Future<void> showRoomPreview(BuildContext context, FilledRoom room) {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            PixelPanel(
-              padding: EdgeInsets.zero,
-              ring: Palette.mapRing,
-              child: AspectRatio(
-                aspectRatio: (t.shape.tileWidth + 2) / (t.shape.tileHeight + 2),
-                child: CustomPaint(painter: _RoomPainter(room)),
+            Center(
+              child: PixelPanel(
+                padding: const EdgeInsets.all(8),
+                fill: Palette.mapBackground,
+                ring: Palette.mapRing,
+                child: CustomPaint(
+                  size: Size(cell * wide, cell * tall),
+                  painter: _RoomPainter(slot, sprites, visibleDoors, cell),
+                ),
               ),
             ),
             const SizedBox(height: 12),
             Text(
-              'Template: ${room.isFallback ? 'none matched (empty fallback)' : t.id}\n'
-              'Shape: ${slot.shape.name}  |  Doors: ${slot.doors.length}\n'
-              'Distance from start: ${slot.distance}  |  Difficulty: ${t.difficulty}\n'
-              'Room seed: ${slot.seed}',
+              'Shape: ${slot.shape.name}\n'
+              'Doors: ${visibleDoors.length}  |  Blocked sides: ${slot.blocked.length}\n'
+              'Blue is walkable, red is blocked. Secret rooms can only attach '
+              'to walkable sides.',
               style: Palette.font(color: Palette.textDim).copyWith(height: 1.4),
             ),
           ],
@@ -56,84 +92,75 @@ String _typeName(RoomType type) => switch (type) {
     };
 
 class _RoomPainter extends CustomPainter {
-  _RoomPainter(this.room);
+  _RoomPainter(this.slot, this.sprites, this.doors, this.cell);
 
-  final FilledRoom room;
+  final RoomSlot slot;
+  final Sprites? sprites;
+  final Set<Door> doors;
+  final double cell;
 
-  static const _floor = Color(0xFF4A3B33);
-  static const _wall = Color(0xFF2A211D);
-  static const _rock = Color(0xFF8A8079);
-  static const _pit = Color(0xFF0B0908);
-  static const _door = Color(0xFF7A5A3A);
+  static const _walk = Color(0xFF49538D);
+  static const _block = Color(0xFF772525);
 
   @override
   void paint(Canvas canvas, Size size) {
-    final t = room.template;
-    final w = t.shape.tileWidth;
-    final h = t.shape.tileHeight;
-    final tile = size.width / (w + 2);
-    canvas.drawRect(Offset.zero & size, Paint()..color = _wall);
-    canvas.drawRect(
-        Rect.fromLTWH(tile, tile, w * tile, h * tile), Paint()..color = _floor);
-
-    for (var y = 0; y < h; y++) {
-      for (var x = 0; x < w; x++) {
-        final rect = Rect.fromLTWH((x + 1) * tile, (y + 1) * tile, tile, tile);
-        switch (t.tiles[y][x]) {
-          case '#':
-            canvas.drawRect(rect, Paint()..color = _wall);
-          case 'r':
-            canvas.drawRRect(
-              RRect.fromRectAndRadius(rect.deflate(tile * 0.08), Radius.circular(tile * 0.25)),
-              Paint()..color = _rock,
-            );
-          case 'p':
-            canvas.drawRect(rect, Paint()..color = _pit);
-          case 'i':
-            _glyph(canvas, rect, Icons.emoji_events_rounded, Palette.secret);
-          case r'$':
-            _glyph(canvas, rect, Icons.monetization_on_rounded, Palette.correct);
-          case 'b':
-            _glyph(canvas, rect.inflate(tile * 0.6), Icons.dangerous_rounded,
-                Palette.wrong);
+    for (final p in slot.cells) {
+      final rel = p - slot.origin;
+      final rect = Rect.fromLTWH(rel.x * cell, rel.y * cell, cell, cell)
+          .inflate(0.5);
+      final blocked = {
+        for (final d in slot.blocked)
+          if (d.cell == p) d.side,
+      };
+      final (name, turns) = layoutTile(slot.shape, blocked);
+      final image = sprites?.layout(name);
+      if (image != null) {
+        _rotated(canvas, image, rect, turns);
+      } else {
+        canvas.drawRect(rect, Paint()..color = _walk);
+        for (final s in blocked) {
+          canvas.drawRect(_band(rect, s), Paint()..color = _block);
         }
       }
     }
-
-    const cx = RoomShape.tilesPerCellX, cy = RoomShape.tilesPerCellY;
-    for (final d in room.slot.relativeDoors) {
-      final c = d.cell;
-      final x = switch (d.side) {
-        Side.left => c.x * cx,
-        Side.right => (c.x + 1) * cx + 1,
-        _ => c.x * cx + cx ~/ 2 + 1,
-      };
-      final y = switch (d.side) {
-        Side.up => c.y * cy,
-        Side.down => (c.y + 1) * cy + 1,
-        _ => c.y * cy + cy ~/ 2 + 1,
-      };
-      canvas.drawRect(
-          Rect.fromLTWH(x * tile, y * tile, tile, tile), Paint()..color = _door);
+    final door = sprites?.layout('door');
+    for (final d in doors) {
+      final rel = d.cell - slot.origin;
+      final rect = Rect.fromLTWH(rel.x * cell, rel.y * cell, cell, cell);
+      if (door != null) {
+        _rotated(canvas, door, rect, d.side.quarterTurns);
+      } else {
+        canvas.drawRect(_band(rect, d.side).deflate(cell * 0.03),
+            Paint()..color = Palette.gold);
+      }
     }
   }
 
-  void _glyph(Canvas canvas, Rect rect, IconData icon, Color color) {
-    final tp = TextPainter(
-      text: TextSpan(
-        text: String.fromCharCode(icon.codePoint),
-        style: TextStyle(
-          fontSize: rect.height * 0.9,
-          fontFamily: icon.fontFamily,
-          package: icon.fontPackage,
-          color: color,
-        ),
-      ),
-      textDirection: TextDirection.ltr,
-    )..layout();
-    tp.paint(canvas, rect.center - Offset(tp.width / 2, tp.height / 2));
+  Rect _band(Rect r, Side s) {
+    final t = r.width / 8;
+    return switch (s) {
+      Side.up => Rect.fromLTWH(r.left, r.top, r.width, t),
+      Side.down => Rect.fromLTWH(r.left, r.bottom - t, r.width, t),
+      Side.left => Rect.fromLTWH(r.left, r.top, t, r.height),
+      Side.right => Rect.fromLTWH(r.right - t, r.top, t, r.height),
+    };
+  }
+
+  void _rotated(Canvas canvas, ui.Image image, Rect rect, int turns) {
+    canvas.save();
+    canvas.translate(rect.center.dx, rect.center.dy);
+    canvas.rotate(turns * pi / 2);
+    canvas.drawImageRect(
+      image,
+      Rect.fromLTWH(0, 0, image.width.toDouble(), image.height.toDouble()),
+      Rect.fromCenter(center: Offset.zero, width: rect.width, height: rect.height),
+      Paint()
+        ..filterQuality = FilterQuality.none
+        ..isAntiAlias = false,
+    );
+    canvas.restore();
   }
 
   @override
-  bool shouldRepaint(_RoomPainter old) => old.room != room;
+  bool shouldRepaint(_RoomPainter old) => old.slot != slot || old.cell != cell;
 }
