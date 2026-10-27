@@ -6,6 +6,7 @@ import '../generator/layout_generator.dart';
 import '../quiz/quiz_controller.dart';
 import 'minimap.dart';
 import 'palette.dart';
+import 'pixel.dart';
 import 'sprites.dart';
 
 class QuizPage extends StatelessWidget {
@@ -17,51 +18,51 @@ class QuizPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final compact = MediaQuery.sizeOf(context).width < 520;
     return ListenableBuilder(
       listenable: controller,
       builder: (context, _) => Scaffold(
-        backgroundColor: Palette.background,
-        appBar: AppBar(
-          backgroundColor: Palette.background,
-          title: const Text('Secret Room Trainer'),
-          actions: [
-            IconButton(
-              tooltip: controller.showHints ? 'Hide hints' : 'Show hints',
-              isSelected: controller.showHints,
-              icon: const Icon(Icons.lightbulb_outline),
-              selectedIcon: const Icon(Icons.lightbulb, color: Palette.secret),
-              onPressed: controller.toggleHints,
-            ),
-            IconButton(
-              tooltip: 'Play a seed',
-              icon: const Icon(Icons.tag),
-              onPressed: () => _seedDialog(context),
-            ),
-          ],
-        ),
-        body: SafeArea(
-          child: Center(
-            child: ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 760),
-              child: Padding(
-                padding: const EdgeInsets.all(12),
-                child: Column(
-                  children: [
-                    _statsBar(context),
-                    const SizedBox(height: 8),
-                    _prompt(context),
-                    const SizedBox(height: 8),
-                    Expanded(
-                      child: Minimap(
-                        controller: controller,
-                        sprites: sprites,
-                        onRoomTap: onPeek == null ? null : (r) => onPeek!(context, r),
+        backgroundColor: Colors.transparent,
+        body: CheckerBackground(
+          child: SafeArea(
+            child: Center(
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 760),
+                child: Padding(
+                  padding: EdgeInsets.all(compact ? 6 : 16),
+                  child: PixelPanel(
+                    fill: Palette.panel,
+                    padding: EdgeInsets.all(compact ? 10 : 18),
+                    child: SizedBox(
+                      width: double.infinity,
+                      child: Column(
+                        children: [
+                          _header(context),
+                          const SizedBox(height: 10),
+                          _stats(),
+                          const SizedBox(height: 10),
+                          _prompt(),
+                          const SizedBox(height: 10),
+                          Expanded(
+                            child: PixelPanel(
+                              fill: Palette.mapBackground,
+                              ring: Palette.mapRing,
+                              padding: const EdgeInsets.all(8),
+                              child: Minimap(
+                                controller: controller,
+                                sprites: sprites,
+                                onRoomTap:
+                                    onPeek == null ? null : (r) => onPeek!(context, r),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(height: 12),
+                          if (controller.revealed) _legend(),
+                          _actions(),
+                        ],
                       ),
                     ),
-                    const SizedBox(height: 8),
-                    if (controller.revealed) _legend(context),
-                    _actions(),
-                  ],
+                  ),
                 ),
               ),
             ),
@@ -71,89 +72,134 @@ class QuizPage extends StatelessWidget {
     );
   }
 
-  Widget _statsBar(BuildContext context) {
+  Widget _header(BuildContext context) {
     final c = controller;
-    return Wrap(
-      spacing: 8,
-      runSpacing: 8,
-      alignment: WrapAlignment.center,
-      crossAxisAlignment: WrapCrossAlignment.center,
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        DropdownButton<int>(
-          value: c.level,
-          isDense: true,
-          items: [
-            for (var l = 1; l <= 8; l++)
-              DropdownMenuItem(value: l, child: Text('Level $l')),
-          ],
-          onChanged: (l) => c.newFloor(level: l),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              FittedBox(
+                fit: BoxFit.scaleDown,
+                alignment: Alignment.centerLeft,
+                child: Text(
+                  'SECRET ROOM TRAINER',
+                  style: Palette.font(size: 30, weight: FontWeight.w700)
+                      .copyWith(shadows: const [Shadow(offset: Offset(3, 3))]),
+                ),
+              ),
+              const SizedBox(height: 4),
+              Wrap(
+                crossAxisAlignment: WrapCrossAlignment.center,
+                spacing: 8,
+                children: [
+                  DropdownButtonHideUnderline(
+                    child: DropdownButton<int>(
+                      value: c.level,
+                      isDense: true,
+                      dropdownColor: Palette.panel,
+                      iconEnabledColor: Palette.textDim,
+                      style: Palette.font(size: 16, color: Palette.textDim),
+                      items: [
+                        for (var l = 1; l <= 8; l++)
+                          DropdownMenuItem(value: l, child: Text('Level $l')),
+                      ],
+                      onChanged: (l) => c.newFloor(level: l),
+                    ),
+                  ),
+                  Text('·', style: Palette.font(color: Palette.textDim)),
+                  Tooltip(
+                    message: 'Copy seed',
+                    child: MouseRegion(
+                      cursor: SystemMouseCursors.click,
+                      child: GestureDetector(
+                        onTap: () {
+                          Clipboard.setData(ClipboardData(text: '${c.layout.seed}'));
+                          ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(content: Text('Seed copied')));
+                        },
+                        child: Text('Seed ${c.layout.seed}',
+                            style: Palette.font(color: Palette.textDim)),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
         ),
-        _chip('Seed', '${c.layout.seed}', onTap: () {
-          Clipboard.setData(ClipboardData(text: '${c.layout.seed}'));
-          ScaffoldMessenger.of(context)
-              .showSnackBar(const SnackBar(content: Text('Seed copied')));
-        }),
-        _chip('Score', '${c.correct}'),
-        _chip('Streak', '${c.streak}'),
-        _chip('Best', '${c.bestStreak}'),
-        _chip('Accuracy', c.rounds == 0 ? '-' : '${(c.accuracy * 100).round()}%'),
+        const SizedBox(width: 8),
+        PixelIconButton(
+          icon: Icons.lightbulb,
+          tooltip: c.showHints ? 'Hide hints' : 'Show hints',
+          active: c.showHints,
+          onPressed: c.toggleHints,
+        ),
+        const SizedBox(width: 8),
+        PixelIconButton(
+          icon: Icons.tag,
+          tooltip: 'Play a seed',
+          onPressed: () => _seedDialog(context),
+        ),
       ],
     );
   }
 
-  Widget _chip(String label, String value, {VoidCallback? onTap}) {
-    final text = Text.rich(TextSpan(children: [
-      TextSpan(text: '$label ', style: const TextStyle(color: Colors.white54)),
-      TextSpan(text: value, style: const TextStyle(fontWeight: FontWeight.bold)),
-    ]));
-    if (onTap == null) {
-      return Chip(
-          label: text, backgroundColor: Palette.mapBackground, side: BorderSide.none);
-    }
-    return ActionChip(
-      onPressed: onTap,
-      tooltip: 'Copy seed',
-      backgroundColor: Palette.mapBackground,
-      side: BorderSide.none,
-      label: text,
+  Widget _stats() {
+    final c = controller;
+    Widget stat(String label, String value) => Text.rich(TextSpan(children: [
+          TextSpan(text: '$label ', style: Palette.font(size: 18)),
+          TextSpan(
+              text: value,
+              style: Palette.font(size: 18, color: Palette.gold, weight: FontWeight.w700)),
+        ]));
+    return Align(
+      alignment: Alignment.centerLeft,
+      child: Wrap(
+        spacing: 16,
+        runSpacing: 4,
+        children: [
+          stat('Score', '${c.correct}'),
+          stat('Streak', '${c.streak}'),
+          stat('Best', '${c.bestStreak}'),
+          stat('Acc', c.rounds == 0 ? '-' : '${(c.accuracy * 100).round()}%'),
+        ],
+      ),
     );
   }
 
-  Widget _prompt(BuildContext context) {
+  Widget _prompt() {
     final c = controller;
     final (String text, Color color) = switch (c.phase) {
-      QuizPhase.placingSecret => ('Tap where the SECRET room is', Palette.secret),
-      QuizPhase.placingSuperSecret => (
-          'Tap where the SUPER SECRET room is',
-          Palette.superSecret
-        ),
-      QuizPhase.ready => ('Ready - reveal the answer', Colors.white),
+      QuizPhase.placingSecret => ('Find the SECRET room', Palette.secret),
+      QuizPhase.placingSuperSecret => ('Find the SUPER SECRET room', Palette.superSecret),
+      QuizPhase.ready => ('Ready! Reveal the answer', Palette.text),
       QuizPhase.revealed => (
           'Secret: ${c.secretCorrect ? 'correct' : 'wrong'}  |  '
               'Super secret: ${c.superCorrect ? 'correct' : 'wrong'}',
-          c.secretCorrect && c.superCorrect ? Palette.correct : Colors.white,
+          c.secretCorrect && c.superCorrect ? Palette.correct : Palette.text,
         ),
     };
     return Text(
       text,
       textAlign: TextAlign.center,
-      style: Theme.of(context)
-          .textTheme
-          .titleMedium
-          ?.copyWith(color: color, fontWeight: FontWeight.bold),
+      style: Palette.font(size: 22, color: color, weight: FontWeight.w600)
+          .copyWith(shadows: Palette.shadow),
     );
   }
 
-  Widget _legend(BuildContext context) {
+  Widget _legend() {
     return Padding(
-      padding: const EdgeInsets.only(bottom: 8),
+      padding: const EdgeInsets.only(bottom: 12),
       child: Text(
         'Each candidate shows adjacent rooms (n) and its weight range; w is the '
         'rolled weight. Highest weight wins (ties: topmost, then leftmost). '
         'Cells next to the boss or super secret room are never candidates. '
         'Tap a room to peek inside.',
         textAlign: TextAlign.center,
-        style: Theme.of(context).textTheme.bodySmall?.copyWith(color: Colors.white70),
+        style: Palette.font(size: 14, color: Palette.textDim),
       ),
     );
   }
@@ -166,23 +212,15 @@ class QuizPage extends StatelessWidget {
       alignment: WrapAlignment.center,
       children: [
         if (!c.revealed)
-          OutlinedButton.icon(
-            onPressed: c.canUndo ? c.undo : null,
-            icon: const Icon(Icons.undo),
-            label: const Text('Undo'),
-          ),
+          PixelButton(label: 'Undo', onPressed: c.canUndo ? c.undo : null),
         if (!c.revealed)
-          FilledButton.icon(
+          PixelButton(
+            label: 'Reveal',
+            primary: true,
             onPressed: c.phase == QuizPhase.ready ? c.reveal : null,
-            icon: const Icon(Icons.visibility),
-            label: const Text('Reveal'),
           )
         else
-          FilledButton.icon(
-            onPressed: () => c.newFloor(),
-            icon: const Icon(Icons.arrow_forward),
-            label: const Text('Next floor'),
-          ),
+          PixelButton(label: 'Next floor', primary: true, onPressed: () => c.newFloor()),
       ],
     );
   }
@@ -208,6 +246,7 @@ class QuizPage extends StatelessWidget {
               const SizedBox(height: 12),
               DropdownButtonFormField<int>(
                 initialValue: level,
+                dropdownColor: Palette.panel,
                 decoration: const InputDecoration(labelText: 'Level'),
                 items: [
                   for (var l = 1; l <= 8; l++)
@@ -218,13 +257,11 @@ class QuizPage extends StatelessWidget {
             ],
           ),
           actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context, false),
-              child: const Text('Cancel'),
-            ),
-            FilledButton(
+            PixelButton(label: 'Cancel', onPressed: () => Navigator.pop(context, false)),
+            PixelButton(
+              label: 'Play',
+              primary: true,
               onPressed: () => Navigator.pop(context, true),
-              child: const Text('Play'),
             ),
           ],
         ),

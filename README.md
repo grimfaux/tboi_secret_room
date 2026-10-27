@@ -47,7 +47,11 @@ All generation code is pure Dart in `lib/generator/` and is fully reproducible f
 
 Doors are stored per cell. Narrow rooms only open on their long sides, so nothing connects through their closed sides. Each slot gets its own seed from the floor RNG. Ultra secret room placement has a marked extension point.
 
-The minimap tile for each cell of a shape is picked from which of its neighbors belong to the same room (`RoomShape.tileFor`), using the images in `assets/tiles/`.
+The minimap tile for each cell of a shape is picked from which of its neighbors belong to the same room (`RoomShape.tileFor`), using the images in `assets/tiles/`. Rooms are drawn touching, like the in-game minimap, and possible secret spots use `assets/tiles/empty.png`. Doors aren't drawn: on a tree layout every touching pair is connected.
+
+## Style
+
+Pixel-art "basement" look: Pixelify Sans (via `google_fonts`, so the first load needs internet), checkered background, chunky black-outlined panels and buttons (`lib/ui/pixel.dart`), and nearest-neighbour scaling for all sprites.
 
 **Phase 2: fill** (`room_filler.dart`) picks a pre-made layout for each slot from `assets/rooms/templates.json`: same shape and room type, with openings on all of the slot's doors, weighted random using the room's own seed. If nothing matches, it uses an empty room of that shape. Only 1×1 templates exist so far, so other shapes always use the empty room. Template doors are side names (`"left"`) for 1×1 rooms, or `"x,y,side"` for a door on a specific cell. Tile legend: `.` floor, `#` wall, `r` rock, `p` pit, `i` item, `$` shop item, `b` boss.
 

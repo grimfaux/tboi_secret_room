@@ -4,6 +4,7 @@ import '../generator/geometry.dart';
 import '../generator/room_filler.dart';
 import '../generator/room_shape.dart';
 import 'palette.dart';
+import 'pixel.dart';
 
 Future<void> showRoomPreview(BuildContext context, FilledRoom room) {
   final t = room.template;
@@ -11,7 +12,6 @@ Future<void> showRoomPreview(BuildContext context, FilledRoom room) {
   return showDialog(
     context: context,
     builder: (context) => AlertDialog(
-      backgroundColor: Palette.mapBackground,
       title: Text(_typeName(slot.type)),
       content: SizedBox(
         width: 420,
@@ -19,9 +19,13 @@ Future<void> showRoomPreview(BuildContext context, FilledRoom room) {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            AspectRatio(
-              aspectRatio: (t.shape.tileWidth + 2) / (t.shape.tileHeight + 2),
-              child: CustomPaint(painter: _RoomPainter(room)),
+            PixelPanel(
+              padding: EdgeInsets.zero,
+              ring: Palette.mapRing,
+              child: AspectRatio(
+                aspectRatio: (t.shape.tileWidth + 2) / (t.shape.tileHeight + 2),
+                child: CustomPaint(painter: _RoomPainter(room)),
+              ),
             ),
             const SizedBox(height: 12),
             Text(
@@ -29,16 +33,13 @@ Future<void> showRoomPreview(BuildContext context, FilledRoom room) {
               'Shape: ${slot.shape.name}  |  Doors: ${slot.doors.length}\n'
               'Distance from start: ${slot.distance}  |  Difficulty: ${t.difficulty}\n'
               'Room seed: ${slot.seed}',
-              style: const TextStyle(color: Colors.white70, height: 1.4),
+              style: Palette.font(color: Palette.textDim).copyWith(height: 1.4),
             ),
           ],
         ),
       ),
       actions: [
-        TextButton(
-          onPressed: () => Navigator.pop(context),
-          child: const Text('Close'),
-        ),
+        PixelButton(label: 'Close', onPressed: () => Navigator.pop(context)),
       ],
     ),
   );

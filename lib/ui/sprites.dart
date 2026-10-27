@@ -20,10 +20,11 @@ class Sprites {
   };
 
   ui.Image? tile(String name) => _tiles[name];
+  ui.Image? get empty => _tiles['empty'];
   ui.Image? icon(RoomType type) => _icons[iconNames[type]];
 
   static Future<Sprites> load(AssetBundle bundle) async {
-    final tileNames = {for (final s in RoomShape.values) ...s.tiles};
+    final tileNames = {'empty', for (final s in RoomShape.values) ...s.tiles};
     return Sprites(
       await _loadAll(bundle, 'tiles', tileNames),
       await _loadAll(bundle, 'icons', iconNames.values),
