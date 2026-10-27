@@ -25,6 +25,20 @@ void main() {
     }
   });
 
+  test('start and shop are never blocked, treasure at most one side', () {
+    var treasures = 0, blockedTreasures = 0;
+    for (final l in samples(count: 1000)) {
+      expect(l.ofType(RoomType.start).blocked, isEmpty);
+      expect(l.ofType(RoomType.shop).blocked, isEmpty);
+      final t = l.ofType(RoomType.treasure);
+      expect(t.blocked.length, lessThanOrEqualTo(1));
+      treasures++;
+      if (t.blocked.isNotEmpty) blockedTreasures++;
+    }
+    expect(blockedTreasures, greaterThan(0));
+    expect(blockedTreasures / treasures, lessThan(0.25));
+  });
+
   test('every door is reachable from both sides', () {
     for (final l in samples()) {
       for (final r in l.rooms) {

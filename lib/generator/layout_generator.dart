@@ -118,7 +118,8 @@ class LayoutGenerator {
         };
     final blockedSides = [
       for (var i = 0; i < origins.length; i++)
-        RoomLayouts.blockedSides(shapes[i], origins[i], seeds[i], contactsOf(i)),
+        RoomLayouts.blockedSides(
+            shapes[i], origins[i], types[i], seeds[i], contactsOf(i)),
     ];
 
     bool reachable(GridPos from, Side side) {
@@ -157,7 +158,7 @@ class LayoutGenerator {
     types.add(RoomType.secret);
     seeds.add(rng.nextInt(maxSeed));
     blockedSides.add(RoomLayouts.blockedSides(
-        RoomShape.oneByOne, secret, seeds.last, secretDoors));
+        RoomShape.oneByOne, secret, RoomType.secret, seeds.last, secretDoors));
 
     // Extension point: ultra secret room placement goes here.
 
