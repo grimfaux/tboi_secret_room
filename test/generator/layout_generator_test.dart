@@ -2,7 +2,6 @@ import 'dart:math';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:secret_room_trainer/generator/floor_layout.dart';
-import 'package:secret_room_trainer/generator/geometry.dart';
 import 'package:secret_room_trainer/generator/layout_generator.dart';
 import 'package:secret_room_trainer/generator/room_shape.dart';
 
