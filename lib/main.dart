@@ -8,6 +8,7 @@ import 'quiz/quiz_controller.dart';
 import 'ui/palette.dart';
 import 'ui/quiz_page.dart';
 import 'ui/room_preview.dart';
+import 'ui/sprites.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -17,14 +18,21 @@ Future<void> main() async {
   runApp(SecretRoomApp(
     controller: QuizController(store: StatsStore(prefs)),
     filler: RoomFiller(pool),
+    sprites: await Sprites.load(rootBundle),
   ));
 }
 
 class SecretRoomApp extends StatelessWidget {
-  const SecretRoomApp({super.key, required this.controller, required this.filler});
+  const SecretRoomApp({
+    super.key,
+    required this.controller,
+    required this.filler,
+    this.sprites,
+  });
 
   final QuizController controller;
   final RoomFiller filler;
+  final Sprites? sprites;
 
   @override
   Widget build(BuildContext context) {
@@ -38,6 +46,7 @@ class SecretRoomApp extends StatelessWidget {
       ),
       home: QuizPage(
         controller: controller,
+        sprites: sprites,
         onPeek: (context, room) => showRoomPreview(context, filler.fill(room)),
       ),
     );

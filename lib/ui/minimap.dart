@@ -1,3 +1,5 @@
+import 'dart:ui' as ui;
+
 import 'package:flutter/material.dart';
 
 import '../generator/floor_layout.dart';
@@ -5,11 +7,13 @@ import '../generator/geometry.dart';
 import '../generator/room_shape.dart';
 import '../quiz/quiz_controller.dart';
 import 'palette.dart';
+import 'sprites.dart';
 
 class Minimap extends StatefulWidget {
-  const Minimap({super.key, required this.controller, this.onRoomTap});
+  const Minimap({super.key, required this.controller, this.onRoomTap, this.sprites});
 
   final QuizController controller;
+  final Sprites? sprites;
   final void Function(RoomSlot room)? onRoomTap;
 
   @override
@@ -79,6 +83,7 @@ class _MinimapState extends State<Minimap> {
                 hover != null && _tappable(hover) ? hover : null,
                 view.origin,
                 cell,
+                widget.sprites,
               ),
             ),
           ),
@@ -89,9 +94,10 @@ class _MinimapState extends State<Minimap> {
 }
 
 class _MinimapPainter extends CustomPainter {
-  _MinimapPainter(this.c, this.hover, this.origin, this.s);
+  _MinimapPainter(this.c, this.hover, this.origin, this.s, this.sprites);
 
   final QuizController c;
+  final Sprites? sprites;
   final GridPos? hover;
   final GridPos origin;
   final double s;
@@ -144,12 +150,12 @@ class _MinimapPainter extends CustomPainter {
     }
 
     if (c.secretGuess != null) {
-      _guess(canvas, c.secretGuess!, s, 'S', Palette.secret,
+      _guess(canvas, c.secretGuess!, s, RoomType.secret, 'S', Palette.secret,
           c.revealed ? c.secretCorrect : null);
     }
     if (c.superGuess != null) {
-      _guess(canvas, c.superGuess!, s, 'SS', Palette.superSecret,
-          c.revealed ? c.superCorrect : null);
+      _guess(canvas, c.superGuess!, s, RoomType.superSecret, 'SS',
+          Palette.superSecret, c.revealed ? c.superCorrect : null);
     }
   }
 
@@ -189,30 +195,63 @@ class _MinimapPainter extends CustomPainter {
   }
 
   void _room(Canvas canvas, RoomSlot r, double s) {
-    final rect = _cellRect(r.origin, s, s * 0.08);
-    final rr = RRect.fromRectAndRadius(rect, Radius.circular(s * 0.14));
-    final fill = switch (r.type) {
-      RoomType.start => Palette.startRoom,
+    final cells = r.cells;
+    final gap = s * 0.06;
+    final tint = switch (r.type) {
       RoomType.secret => Palette.secretRoom,
       RoomType.superSecret => Palette.superSecretRoom,
-      _ => Palette.room,
+      _ => null,
     };
-    if (c.revealed && r.origin == hover) {
-      canvas.drawRRect(rr.inflate(s * 0.04), Paint()..color = Palette.spotHover);
+    if (c.revealed && cells.contains(hover)) {
+      for (final p in cells) {
+        canvas.drawRect(_cellRect(p, s, 0), Paint()..color = Palette.spotHover);
+      }
     }
-    canvas.drawRRect(rr, Paint()..color = fill);
-    canvas.drawRRect(
-      rr,
-      Paint()
-        ..color = Palette.roomBorder
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = s * 0.05,
+    for (final (i, p) in cells.indexed) {
+      Rect rect = _cellRect(p, s, 0);
+      bool open(Side side) => !cells.contains(p.step(side));
+      rect = Rect.fromLTRB(
+        rect.left + (open(Side.left) ? gap : 0),
+        rect.top + (open(Side.up) ? gap : 0),
+        rect.right - (open(Side.right) ? gap : 0),
+        rect.bottom - (open(Side.down) ? gap : 0),
+      );
+      final tile = sprites?.tile(r.shape.tiles[i]);
+      if (tile != null) {
+        _image(canvas, tile, rect, tint: tint);
+      } else {
+        canvas.drawRect(rect, Paint()..color = tint ?? Palette.room);
+        canvas.drawRect(
+          rect.deflate(s * 0.025),
+          Paint()
+            ..color = Palette.roomBorder
+            ..style = PaintingStyle.stroke
+            ..strokeWidth = s * 0.05,
+        );
+      }
+    }
+
+    final bounds = cells.map((p) => _cellRect(p, s, 0)).reduce((a, b) => a.expandToInclude(b));
+    final sprite = sprites?.icon(r.type);
+    if (sprite != null) {
+      _image(canvas, sprite, Rect.fromCenter(center: bounds.center, width: s, height: s));
+    } else {
+      final icon = Palette.icons[r.type];
+      if (icon != null) _icon(canvas, icon.$1, bounds.center, s * 0.5, icon.$2);
+    }
+  }
+
+  void _image(Canvas canvas, ui.Image image, Rect dst, {Color? tint, double opacity = 1}) {
+    final paint = Paint()
+      ..filterQuality = FilterQuality.none
+      ..color = Color.fromRGBO(0, 0, 0, opacity);
+    if (tint != null) paint.colorFilter = ColorFilter.mode(tint, BlendMode.modulate);
+    canvas.drawImageRect(
+      image,
+      Rect.fromLTWH(0, 0, image.width.toDouble(), image.height.toDouble()),
+      dst,
+      paint,
     );
-    final icon = Palette.icons[r.type];
-    if (icon != null) {
-      final small = r.type == RoomType.secret;
-      _icon(canvas, icon.$1, _center(r.origin, s), s * (small ? 0.34 : 0.5), icon.$2);
-    }
   }
 
   void _candidate(Canvas canvas, SecretCandidate cand, double s) {
@@ -225,9 +264,19 @@ class _MinimapPainter extends CustomPainter {
     _text(canvas, 'w${cand.weight}', bottom, s * 0.18, color, bold: isSecret);
   }
 
-  void _guess(Canvas canvas, GridPos p, double s, String label, Color color,
-      bool? correct) {
+  void _guess(Canvas canvas, GridPos p, double s, RoomType type, String label,
+      Color color, bool? correct) {
     final center = _center(p, s);
+    final sprite = sprites?.icon(type);
+    void mark(double size, double opacity) {
+      if (sprite != null) {
+        _image(canvas, sprite, Rect.fromCenter(center: center, width: s, height: s),
+            opacity: opacity);
+      } else {
+        _text(canvas, label, center, size,
+            correct == null ? Palette.mapBackground : color, bold: true);
+      }
+    }
     final radius = s * (correct == null ? 0.3 : 0.22);
     final ringColor = switch (correct) {
       true => Palette.correct,
@@ -236,7 +285,7 @@ class _MinimapPainter extends CustomPainter {
     };
     if (correct == null) {
       canvas.drawCircle(center, radius, Paint()..color = color.withValues(alpha: 0.85));
-      _text(canvas, label, center, s * 0.22, Palette.mapBackground, bold: true);
+      mark(s * 0.22, 1);
     } else {
       canvas.drawCircle(
         center,
@@ -250,9 +299,7 @@ class _MinimapPainter extends CustomPainter {
       canvas.drawCircle(badge, s * 0.11, Paint()..color = ringColor);
       _icon(canvas, correct ? Icons.check : Icons.close, badge, s * 0.16,
           Palette.mapBackground);
-      if (c.layout.roomAt(p) == null) {
-        _text(canvas, label, center, s * 0.16, color, bold: true);
-      }
+      if (c.layout.roomAt(p) == null) mark(s * 0.16, 0.6);
     }
   }
 

@@ -6,12 +6,14 @@ import '../generator/layout_generator.dart';
 import '../quiz/quiz_controller.dart';
 import 'minimap.dart';
 import 'palette.dart';
+import 'sprites.dart';
 
 class QuizPage extends StatelessWidget {
-  const QuizPage({super.key, required this.controller, this.onPeek});
+  const QuizPage({super.key, required this.controller, this.onPeek, this.sprites});
 
   final QuizController controller;
   final void Function(BuildContext context, RoomSlot room)? onPeek;
+  final Sprites? sprites;
 
   @override
   Widget build(BuildContext context) {
@@ -52,6 +54,7 @@ class QuizPage extends StatelessWidget {
                     Expanded(
                       child: Minimap(
                         controller: controller,
+                        sprites: sprites,
                         onRoomTap: onPeek == null ? null : (r) => onPeek!(context, r),
                       ),
                     ),

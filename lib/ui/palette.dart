@@ -6,10 +6,9 @@ abstract final class Palette {
   static const background = Color(0xFF120E0D);
   static const mapBackground = Color(0xFF1E1716);
   static const room = Color(0xFF9A918A);
-  static const startRoom = Color(0xFFE6DFD8);
   static const roomBorder = Color(0xFF3A302D);
-  static const secretRoom = Color(0xFF5E7F9C);
-  static const superSecretRoom = Color(0xFF8C6BB0);
+  static const secretRoom = Color(0xFFA9C8E6);
+  static const superSecretRoom = Color(0xFFD2B8F0);
   static const secretDoor = Color(0xFF6F6577);
   static const spot = Color(0x40FFFFFF);
   static const spotFaint = Color(0x18FFFFFF);
